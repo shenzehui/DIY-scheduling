@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>定时任务管理系统</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+    <!-- 引入样式 -->
+    <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
+    <!-- 引入组件库 -->
+    <script src="https://unpkg.com/element-ui/lib/index.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</head>
+<body>
+<div id="app">
+    <div style="margin-bottom: 10px">
+        <el-button type="primary" size="small" @click="showAddView()">添加作业</el-button>
+    </div>
+    <el-table
+            v-loading="loading"
+            :data="jobs"
+            stripe
+            border
+            style="width: 100%">
+        <el-table-column
+                prop="jobId"
+                label="作业编号"
+                width="80">
+        </el-table-column>
+        <el-table-column
+                prop="beanName"
+                label="bean名称"
+                width="200">
+        </el-table-column>
+        <el-table-column
+                prop="methodName"
+                label="方法名称"
+                width="160">
+        </el-table-column>
+        <el-table-column
+                prop="methodParams"
+                label="方法参数"
+                width="80">
+        </el-table-column>
+        <el-table-column
+                label="Cron表达式"
+                width="160">
+            <template slot-scope="scope">
+                <el-tag size="mini">{{scope.row.cronExpression}}</el-tag>
+            </template>
+        </el-table-column>
+        <el-table-column
+                width="120"
+                label="作业状态">
+            <template slot-scope="scope">
+                <el-switch
+                        @change="jobStatusChange(scope.row)"
+                        style="display: block"
+                        v-model="scope.row.status"
+                        active-color="#13ce66"
+                        inactive-color="#ff4949"
+                        active-text="开启"
+                        :active-value="1"
+                        size="mini"
+                        :inactive-value="0"
+                        inactive-text="禁用">
+                </el-switch>
+            </template>
+        </el-table-column>
+        <el-table-column
+                prop="remark"
+                label="备注信息"
+                width="160">
+        </el-table-column>
+        <el-table-column
+                prop="createTime"
+                label="创建时间"
+                width="160">
+        </el-table-column>
+        <el-table-column
+                prop="updateTime"
+                label="更新时间"
+                width="160">
+        </el-table-column>
+        <el-table-column
+                label="操作">
+            <template slot-scope="scope">
+                <el-button type="primary" size="mini" @click="showUpdateView(scope.row)">编辑作业</el-button>
+                <el-button type="danger" size="mini" @click="deleteJob(scope.row)">删除作业</el-button>
+            </template>
+        </el-table-column>
+    </el-table>
+
+    <el-dialog
+            :title="dialogTitle"
+            :visible.sync="dialogVisible"
+            width="30%">
+        <el-form :model="job" :rules="rules" ref="ruleForm" label-width="100px" class="demo-ruleForm">
+            <el-form-item label="bean名称" prop="beanName">
+                <el-input size="mini" v-model="job.beanName"></el-input>
+            </el-form-item>
+            <el-form-item label="方法名称" prop="methodName">
+                <el-input size="mini" v-model="job.methodName"></el-input>
+            </el-form-item>
+            <el-form-item label="方法参数" prop="methodParams">
+                <el-input size="mini" v-model="job.methodParams"></el-input>
+            </el-form-item>
+            <el-form-item label="Cron表达式" prop="cronExpression">
+                <el-input size="mini" v-model="job.cronExpression"></el-input>
+            </el-form-item>
+            <el-form-item label="作业状态" prop="status">
+                <el-switch
+                        style="display: block"
+                        v-model="job.status"
+                        active-color="#13ce66"
+                        inactive-color="#ff4949"
+                        active-text="开启"
+                        :active-value="1"
+                        size="small"
+                        :inactive-value="0"
+                        inactive-text="禁用">
+                </el-switch>
+            </el-form-item>
+            <el-form-item label="备注信息" prop="remark">
+                <el-input
+                        type="textarea"
+                        :rows="2"
+                        placeholder="请输入内容"
+                        v-model="job.remark">
+                </el-input>
+            </el-form-item>
+        </el-form>
+        <span slot="footer" class="dialog-footer">
+            <el-button @click="dialogVisible = false">取 消</el-button>
+            <el-button type="primary" @click="doAddOrUpdateJob()">确 定</el-button>
+        </span>
+    </el-dialog>
+</div>
+<script>
+    new Vue({
+        el: "#app",
+        data: {
+            loading: false,
+            dialogTitle: '',
+            jobs: [],
+            job: {
+                jobId: '',
+                beanName: '',
+                methodName: '',
+                methodParams: '',
+                cronExpression: '',
+                status: 0,
+                remark: '',
+            },
+            dialogVisible: false,
+            rules: {
+                beanName: [
+                    {required: true, message: '请输入类名称', trigger: 'blur'}
+                ],
+                methodName: [
+                    {required: true, message: '请输入方法名称', trigger: 'blur'}
+                ],
+                cronExpression: [
+                    {required: true, message: '请输入Cron表达式', trigger: 'blur'}
+                ]
+            }
+        },
+        methods: {
+            initJobs() {
+                this.loading = true
+                axios.get('/jobs/').then(resp => {
+                    this.loading = false
+                    if (resp.status == 200) {
+                        this.jobs = resp.data
+                    }
+                })
+                console.log(this.jobs)
+            },
+            jobStatusChange(data) {
+                Object.assign(this.job, data)
+                this.doAddOrUpdateJob()
+            },
+            deleteJob(data) {
+                this.$confirm('此操作将永久删除该作业, 是否继续?', '提示', {
+                    confirmButtonText: '确定',
+                    cancelButtonText: '取消',
+                    type: 'warning'
+                }).then(() => {
+                    axios.delete(`/jobs/${data.jobId}`).then(resp => {
+                        if (resp.status == 200) {
+                            this.$notify({
+                                title: resp.data.status == 200 ? '成功' : '失败',
+                                message: resp.data.msg,
+                                type: resp.data.status == 200 ? 'success' : 'error'
+                            })
+                        }
+                        this.initJobs()
+                    })
+                })
+            },
+            showAddView() {
+                this.dialogTitle = '添加作业'
+                this.job = {
+                    jobId: '',
+                    beanName: '',
+                    methodName: '',
+                    methodParams: '',
+                    cronExpression: '',
+                    status: 1,
+                    remark: '',
+                }
+                this.dialogVisible = true
+            },
+            doAddOrUpdateJob() {
+                console.log(this.job)
+                if (this.job.jobId != '' && this.job.jobId != null && this.job.jobId != undefined) {
+                    // 更新
+                    this.$refs["ruleForm"].validate((valid) => {
+                        axios.put('/jobs/', this.job).then(resp => {
+                            if (resp.status == 200) {
+                                // 更新成功
+                                this.$notify({
+                                    title: resp.data.status == 200 ? '成功' : '失败',
+                                    message: resp.data.msg,
+                                    type: resp.data.status == 200 ? 'success' : 'error'
+                                })
+                            }
+                        })
+                        // 刷新表格
+                        this.initJobs()
+                        this.dialogVisible = false
+
+                    })
+                } else {
+                    this.$refs["ruleForm"].validate((valid) => {
+                        if (valid) {
+                            axios.post('/jobs/', this.job).then(resp => {
+                                console.log(resp.data)
+                                if (resp.status == 200) {
+                                    this.$notify({
+                                        title: resp.data.status == 200 ? '成功' : '失败',
+                                        message: resp.data.msg,
+                                        type: resp.data.status == 200 ? 'success' : 'error'
+                                    })
+                                }
+                            })
+                            // 刷新表格
+                            this.initJobs()
+                            this.dialogVisible = false
+                        }
+                    })
+                }
+            },
+            showUpdateView(data) {
+                Object.assign(this.job, data)
+                this.dialogTitle = "更新作业"
+                this.dialogVisible = true
+            }
+        },
+        mounted() {
+            this.initJobs()
+        }
+    })
+</script>
+</body>
+</html>

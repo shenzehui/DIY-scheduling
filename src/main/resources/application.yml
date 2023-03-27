@@ -1,0 +1,14 @@
+spring:
+  datasource:
+    username: root
+    password: 240518.a
+    url: jdbc:mysql:///scheduling?serverTimezone=Asia/Shanghai
+  jpa:
+    database-platform: mysql
+    database: mysql
+    hibernate:
+      ddl-auto: update  # 每次运行程序，没有表格会新建表格，表内有数据不会清空，只会更新
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQL57Dialect
+    show-sql: true
